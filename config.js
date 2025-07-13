@@ -1,28 +1,44 @@
+require('dotenv').config(); // Tambahkan baris ini di paling atas file config.js
+
 module.exports = {
   // Bot Identity
   botName: "BetaBotz", // Nama bot kamu
   ownerID: "BetaBotz", // Ganti dengan Nama Kamu
 
   // Discord Settings
-  token:
-    "token kamu", // Ganti dengan token bot kamu
+  token: process.env.DISCORD_BOT_TOKEN, 
+  // buat file dengan nama .env dan isi dengan DISCORD
+  // DISCORD_BOT_TOKEN=""
+  // API_KEY_LANN=""
+
+
   prefix: "!", // Prefix utama untuk bot ini
-  guildID: "345j634563456", // ID server tempat bot ini berada
+  guildID: "wajib di isi", // ID server tempat bot ini berada
 
   // API Keys
-  apikey_lann: "wh45r3456", // Isi APIkey dari https://api.betabotz.eu.org
+  apikey_lann: process.env.API_KEY_LANN,
+  // buat file dengan nama .env dan isi dengan DISCORD
+  // DISCORD_BOT_TOKEN=""
+  // API_KEY_LANN=""
 
+  reminderChannelIds: [
+        'wajib di isi',
+        'wajib di isi',
+        // Add more channel IDs as needed
+    ],
+  ownerId: 'wajib di isi',
+  ilabChannelId: 'wajib di isi',
   // Menu & Feature Settings
   menuPublic: false, // Apakah menu public aktif?
 
   // Channel IDs
-  joinChannelId: "3456j345h6g34h5", // ID channel join
-  gempaChannelId: "3h45634", // ID channel gempa
-  growgardenChannelId: "345h63456", // ID channel growgarden
+  joinChannelId: "wajib di isi", // ID channel join
+  gempaChannelId: "wajib di isi", // ID channel gempa
+  growgardenChannelId: "wajib di isi", // ID channel growgarden
   channelIds: {
-    rules: "34h56345", // ID channel rules
-    pricelist: "3h4563456", // ID channel pricelist
-    ticket: "3h4563456", // ID channel ticket
-    queue: "435h63456", // ID channel queue
+    rules: "wajib di isi", // ID channel rules
+    pricelist: "wajib di isi", // ID channel pricelist
+    ticket: "wajib di isi", // ID channel ticket
+    queue: "wajib di isi", // ID channel queue
   },
 };

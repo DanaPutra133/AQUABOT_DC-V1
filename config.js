@@ -21,13 +21,13 @@ module.exports = {
   // DISCORD_BOT_TOKEN=""
   // API_KEY_LANN=""
 
-  reminderChannelIds: [
-        'wajib di isi',
-        'wajib di isi',
+  // reminderChannelIds: [
+  //       'wajib di isi',
+  //       'wajib di isi',
         // Add more channel IDs as needed
-    ],
+   // ],
   ownerId: 'wajib di isi',
-  ilabChannelId: 'wajib di isi',
+  // ilabChannelId: 'wajib di isi',
   // Menu & Feature Settings
   menuPublic: false, // Apakah menu public aktif?
 

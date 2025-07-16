@@ -43,20 +43,38 @@ Cocok untuk server komunitas, support, dan hiburan.
    - Contoh:
 
      ```js
-     module.exports = {
-       token: "TOKEN_BOT_DISCORD",
-       prefix: "!",
-       ownerID: "YOUR_ID",
-       guildID: "GUILD_ID",
-       apikey_lann: "APIKEY_LANN", // Gunakan apikey dari [betabotz](https://api.betabotz.eu.org/)
-       joinChannelId: "ID_CHANNEL_WELCOME",
-       channelIds: {
-         rules: "ID_CHANNEL_RULES",
-         pricelist: "ID_CHANNEL_PRICELIST",
-         ticket: "ID_CHANNEL_TICKET",
-         queue: "ID_CHANNEL_QUEUE",
-       },
-     };
+    module.exports = {
+  
+  botName: "BetaBotz", 
+  ownerID: "BetaBotz",
+
+  // Discord Settings
+  token: process.env.DISCORD_BOT_TOKEN, 
+  prefix: "!", 
+  guildID: "1248939308501569536", 
+
+ 
+  apikey_lann: process.env.API_KEY_LANN, 
+  reminderChannelIds: [
+        '1391419433741979819',
+        '1294278656818024545',
+       
+    ],
+  ownerId: '686498842560168043',
+  ilabChannelId: '1313549503516901447',
+  
+  menuPublic: false, 
+
+  // Channel IDs
+  joinChannelId: "1248939308501569536", 
+  gempaChannelId: "1248939308501569536", 
+  growgardenChannelId: "1248939308501569536", 
+  channelIds: {
+    rules: "1363427505889087518", 
+    pricelist: "1363648989437759638", 
+    ticket: "1363649443118973039", 
+    queue: "1371072797887037561",  },
+};
      ```
 
    - **Dapatkan apikey betabotz di sini:**  

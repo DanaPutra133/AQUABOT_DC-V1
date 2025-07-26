@@ -15,3 +15,4 @@ yarn-error.log
 waifu_limits.json 
 plugins/antikatakasar_config.json    
 database.json
+banned_users.json

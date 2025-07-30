@@ -6,12 +6,16 @@ const playerGameMap = new Map();
 
 // --- Konfigurasi Game ---
 const ROLES = {
-    WEREWOLF: { id: 'werewolf', name: "Werewolf", emoji: "🐺", team: "Werewolf", description: "Setiap malam, kamu dan werewolf lain memilih satu korban untuk dimangsa." },
-    SEER: { id: 'seer', name: "Seer", emoji: "🧙🏻‍♀️", team: "Villager", description: "Setiap malam, kamu bisa memilih satu pemain untuk mengetahui perannya." },
-    GUARDIAN: { id: 'guardian', name: "Guardian", emoji: "👼", team: "Villager", description: "Setiap malam, kamu bisa memilih satu pemain untuk dilindungi dari serangan Werewolf." },
-    VILLAGER: { id: 'villager', name: "Villager", emoji: "👱‍♂️", team: "Villager", description: "Kamu adalah warga biasa. Gunakan intuisimu untuk menemukan werewolf." }
+    WEREWOLF: { id: 'werewolf', name: "Werewolf", emoji: "🐺", team: "Werewolf", description: "Setiap malam, pilih satu korban untuk dimangsa." },
+    SEER: { id: 'seer', name: "Seer", emoji: "👳", team: "Villager", description: "Setiap malam, pilih satu pemain untuk mengetahui perannya." },
+    GUARDIAN: { id: 'guardian', name: "Guardian", emoji: "👼", team: "Villager", description: "Setiap malam, pilih satu pemain untuk dilindungi." },
+    VILLAGER: { id: 'villager', name: "Villager", emoji: "👱‍♂️", team: "Villager", description: "Gunakan intuisimu untuk menemukan werewolf." },
+    JOKER: { id: 'joker', name: "Joker", emoji: "🃏", team: "Jester", description: "Menang jika berhasil membuat warga menggantungmu saat voting." },
+    SHOOTER: { id: 'shooter', name: "Shooter", emoji: "🔫", team: "Villager", description: "Memiliki 1 peluru. Pada malam hari, kamu bisa menembak satu pemain." },
+    SORCERER: { id: 'sorcerer', name: "Sorcerer", emoji: "🔮", team: "Werewolf", description: "Penerawang untuk tim Werewolf." },
+    ANGEL: { id: 'angel', name: "Angel", emoji: "🕊️", team: "Villager", description: "Kamu bisa menghidupkan kembali pemain yang baru saja mati. Kamu memiliki 2 kesempatan." }
 };
-const PHASE_TIMINGS = { NIGHT: 45000, DAY: 60000, VOTING: 45000 };
+const PHASE_TIMINGS = { NIGHT: 45000, DAY: 60000, VOTING: 45000, REVIVE: 30000 };
 
 class WerewolfGame {
     constructor(channel, initiator) {
@@ -23,7 +27,7 @@ class WerewolfGame {
     addPlayer(member) {
         if (this.players.size >= 15) return { success: false, message: "Lobi penuh." };
         if (this.players.has(member.id)) return { success: false, message: "Kamu sudah di lobi." };
-        this.players.set(member.id, { member, role: null, isAlive: true, hasVoted: false, hasUsedNightAction: false });
+        this.players.set(member.id, { member, role: null, isAlive: true, extras: {} });
         playerGameMap.set(member.id, this.channel.id);
         return { success: true };
     }
@@ -34,11 +38,25 @@ class WerewolfGame {
     }
     assignRoles() {
         const pArr = Array.from(this.players.values()); const rArr = []; const pCount = pArr.length;
-        if (pCount >= 5) { rArr.push(ROLES.WEREWOLF, ROLES.SEER, ROLES.GUARDIAN); }
-        if (pCount >= 7) { rArr.push(ROLES.WEREWOLF); } if (pCount >= 10) { rArr.push(ROLES.GUARDIAN); }
-        if (pCount >= 12) { rArr.push(ROLES.WEREWOLF); } while (rArr.length < pCount) { rArr.push(ROLES.VILLAGER); }
-        for (let i = pArr.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [rArr[i], rArr[j]] = [rArr[j], rArr[i]]; }
-        pArr.forEach((p, i) => { p.role = rArr[i]; });
+        const roleCounts = {
+            5: [1, 1, 1, 0, 0, 0, 0], 6: [2, 1, 1, 0, 0, 0, 0], 7: [2, 1, 1, 0, 1, 0, 0],
+            8: [2, 1, 1, 1, 1, 0, 0], 9: [2, 1, 1, 1, 1, 1, 0], 10: [3, 1, 1, 1, 1, 1, 1], // Angel masuk di 10 pemain
+            11: [3, 1, 2, 1, 1, 1, 1], 12: [3, 1, 2, 1, 1, 1, 1],
+            13: [3, 2, 2, 1, 1, 1, 1], 14: [4, 2, 2, 1, 1, 1, 1], 15: [4, 2, 2, 1, 1, 1, 1],
+        };
+        // [WW, Seer, Guard, Sorc, Joker, Shoot, Angel]
+        const counts = roleCounts[pCount] || roleCounts[5];
+        for(let i=0; i<counts[0]; i++) rArr.push(ROLES.WEREWOLF); for(let i=0; i<counts[1]; i++) rArr.push(ROLES.SEER);
+        for(let i=0; i<counts[2]; i++) rArr.push(ROLES.GUARDIAN); for(let i=0; i<counts[3]; i++) rArr.push(ROLES.SORCERER);
+        for(let i=0; i<counts[4]; i++) rArr.push(ROLES.JOKER); for(let i=0; i<counts[5]; i++) rArr.push(ROLES.SHOOTER);
+        for(let i=0; i<counts[6]; i++) rArr.push(ROLES.ANGEL);
+        while (rArr.length < pCount) { rArr.push(ROLES.VILLAGER); }
+        for (let i=pArr.length - 1; i > 0; i--) { const j=Math.floor(Math.random() * (i + 1)); [rArr[i], rArr[j]]=[rArr[j], rArr[i]]; }
+        pArr.forEach((p, i) => {
+            p.role = rArr[i];
+            if (p.role.id === 'shooter') p.extras.bullets = 1;
+            if (p.role.id === 'angel') p.extras.revives = 2; // Beri 2 kesempatan revive
+        });
     }
     async start() {
         this.state = 'STARTING'; this.assignRoles();
@@ -107,19 +125,25 @@ class WerewolfGame {
         this.state = 'DAY'; let desc = "☀️ Matahari terbit.\n\n";
         const killVotes = Array.from(this.nightActions.kills.values());
         const protectedTarget = Array.from(this.nightActions.protects.values())[0];
+        let victim = null;
         if (killVotes.length > 0) {
             const counts = killVotes.reduce((a, v) => { a[v] = (a[v] || 0) + 1; return a; }, {});
             const mostVotedId = Object.keys(counts).reduce((a, b) => counts[a] > counts[b] ? a : b);
             if (mostVotedId && mostVotedId !== protectedTarget) {
-                const victim = this.players.get(mostVotedId); 
-                if(victim) {
-                    victim.isAlive = false;
-                    desc += `Warga menemukan **${victim.member.user.username}** tewas. Dia adalah **${victim.role.name} ${victim.role.emoji}**.`;
-                }
-            } else { desc += "Serangan Werewolf berhasil digagalkan oleh Guardian! Tidak ada yang tewas."; }
+                victim = this.players.get(mostVotedId);
+                victim.isAlive = false;
+                desc += `Warga menemukan **${victim.member.user.username}** tewas. Dia adalah **${victim.role.name} ${victim.role.emoji}**.`;
+            } else { desc += "Serangan Werewolf digagalkan oleh Guardian! Tidak ada yang tewas."; }
         } else { desc += "Malam ini berlalu dengan damai."; }
-        const embed = new EmbedBuilder().setColor(0xF1C40F).setTitle(`Pagi Hari Ke-${this.day}`).setDescription(desc).setFooter({ text: `Diskusi dimulai (${PHASE_TIMINGS.DAY / 1000}d).` });
-        await this.channel.send({ embeds: [embed] });
+        
+        const dayEmbed = new EmbedBuilder().setColor(0xF1C40F).setTitle(`Pagi Hari Ke-${this.day}`).setDescription(desc);
+        await this.channel.send({ embeds: [dayEmbed] });
+
+        if (victim) {
+            const wasRevived = await this.handleRevivePhase(victim);
+            if (wasRevived) victim.isAlive = true; 
+        }
+        
         this.timer = setTimeout(() => this.nextPhase(), PHASE_TIMINGS.DAY);
     }
     async startVoting() {
@@ -149,13 +173,65 @@ class WerewolfGame {
         if (this.state !== 'VOTING') return; this.state = 'VOTING_RESULT';
         const counts = Array.from(this.votes.values()).reduce((a, v) => { a[v] = (a[v] || 0) + 1; return a; }, {});
         let maxVotes = 0, lynchedId = null, isTie = false;
+        let resultText; let lynchedPlayer = null;
         for (const id in counts) { if (counts[id] > maxVotes) { maxVotes = counts[id]; lynchedId = id; isTie = false; } else if (counts[id] === maxVotes) { isTie = true; } }
         let text;
-        if (isTie || !lynchedId) { text = "Voting berakhir seri. Tidak ada yang digantung."; } 
-        else { const p = this.players.get(lynchedId); p.isAlive = false; text = `Warga memutuskan **${p.member.user.username}** digantung.\nDia adalah **${p.role.name} ${p.role.emoji}**.`; }
+        if (isTie || !lynchedId) { text = "Voting berakhir seri."; } 
+        else { 
+            lynchedPlayer = this.players.get(lynchedId);
+            if (lynchedPlayer.role.id === 'joker') return this.endGame('Jester'); // Joker menang!
+            lynchedPlayer.isAlive = false; 
+            text = `Warga memutuskan **${lynchedPlayer.member.user.username}** digantung.\nDia adalah **${lynchedPlayer.role.name} ${lynchedPlayer.role.emoji}**.`;
+        }
         const embed = new EmbedBuilder().setColor(0x992D22).setTitle("Hasil Voting").setDescription(text);
         await this.channel.send({ embeds: [embed] });
+        if (lynchedPlayer) {
+            const wasRevived = await this.handleRevivePhase(lynchedPlayer);
+            if (wasRevived) lynchedPlayer.isAlive = true;
+        }
+
         this.timer = setTimeout(() => this.nextPhase(), 5000);
+    }
+    async handleRevivePhase(deadPlayer) {
+        const angel = Array.from(this.players.values()).find(p => p.isAlive && p.role.id === 'angel' && p.extras.revives > 0);
+        if (!angel) return false; 
+
+        this.state = 'REVIVE';
+        const embed = new EmbedBuilder().setColor(0xFFFFFF).setTitle("🕊️ Kesempatan untuk Angel!").setDescription(`**${deadPlayer.member.user.username}** baru saja tewas. Apakah kamu ingin menggunakan kekuatanmu untuk menghidupkannya kembali?\n\nSisa kesempatan: **${angel.extras.revives}**`);
+        const buttons = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('ww_revive_yes').setLabel('Hidupkan Kembali').setStyle(ButtonStyle.Success),
+            new ButtonBuilder().setCustomId('ww_revive_no').setLabel('Jangan Gunakan').setStyle(ButtonStyle.Secondary)
+        );
+
+        const dmMessage = await angel.member.send({ embeds: [embed], components: [buttons] }).catch(() => null);
+        if (!dmMessage) return false;
+
+        return new Promise(resolve => {
+            const collector = dmMessage.createMessageComponentCollector({ componentType: ComponentType.Button, time: PHASE_TIMINGS.REVIVE });
+            let decisionMade = false;
+
+            collector.on('collect', async i => {
+                decisionMade = true;
+                await i.deferUpdate();
+                if (i.customId === 'ww_revive_yes') {
+                    angel.extras.revives--;
+                    await i.editReply({ content: `Kamu menggunakan kekuatanmu untuk menghidupkan **${deadPlayer.member.user.username}**. Sisa kesempatan: ${angel.extras.revives}.`, components: [] });
+                    await this.channel.send(`✨ Sebuah keajaiban terjadi! **${deadPlayer.member.user.username}** hidup kembali berkat kekuatan Angel!`);
+                    resolve(true);
+                } else {
+                    await i.editReply({ content: `Kamu memilih untuk tidak menggunakan kekuatanmu kali ini.`, components: [] });
+                    resolve(false);
+                }
+                collector.stop();
+            });
+
+            collector.on('end', async (collected, reason) => {
+                if (!decisionMade) {
+                    await dmMessage.edit({ content: "Waktu habis, kamu tidak membuat keputusan.", components: [] }).catch(() => {});
+                    resolve(false);
+                }
+            });
+        });
     }
     checkWinCondition() {
         const alive = Array.from(this.players.values()).filter(p => p.isAlive);
@@ -181,29 +257,94 @@ const werewolfManager = {
 module.exports = {
   prefix: "werewolf", category: "game", aliases: ["ww"],
   async execute(message, args, client) {
-    const sub = args[0]?.toLowerCase(); const author = message.member; const cid = message.channel.id;
-    if (!sub || !['start', 'join', 'play', 'end'].includes(sub)) { /* ... (Bantuan) ... */ }
-    if (sub === 'start') {
-        if (gameInstances.has(cid)) return message.reply("❗ Lobi sudah ada.");
+    const subCommand = args[0]?.toLowerCase();
+    const channelId = message.channel.id;
+    const author = message.member;
+
+    // [DIPERBARUI] Menambahkan 'role' ke daftar perintah valid dan menu bantuan
+    if (!subCommand || !['start', 'join', 'play', 'end', 'leave', 'role'].includes(subCommand)) {
+        const helpEmbed = new EmbedBuilder()
+            .setColor(0x3498DB)
+            .setTitle("🐺 Bantuan Game Werewolf")
+            .setDescription("Gunakan sub-perintah berikut untuk bermain:")
+            .addFields(
+                { name: "!ww start", value: "Membuat lobi permainan baru." },
+                { name: "!ww join", value: "Bergabung dengan lobi yang ada." },
+                { name: "!ww play", value: "Memulai permainan (hanya pembuat lobi)." },
+                { name: "!ww leave", value: "Keluar dari lobi yang sedang menunggu." },
+                { name: "!ww end", value: "Membatalkan lobi (hanya pembuat lobi)." },
+                { name: "!ww role", value: "Melihat daftar semua peran yang ada." } // Ditambahkan
+            );
+        return message.reply({ embeds: [helpEmbed] });
+    }
+
+    // === Sub-perintah START ===
+    if (subCommand === 'start') {
+        if (gameInstances.has(channelId)) return message.reply("❗ Lobi sudah ada.");
         const game = new WerewolfGame(message.channel, author);
         const embed = new EmbedBuilder().setColor(0xF1C40F).setTitle("🐺 Lobi Werewolf").setDescription(`**${author.user.username}** memulai lobi.\n(Min. 5, Maks. 15)`).addFields({ name: "Pemain (1/15)", value: `- ${author.user.username}` }).setFooter({ text: "Gunakan `!ww join`." });
-        game.message = await message.channel.send({ embeds: [embed] }); game.addPlayer(author); gameInstances.set(cid, game);
-    } else if (sub === 'join') {
-        const game = gameInstances.get(cid); if (!game || game.state !== 'LOBBY') return message.reply("❌ Tidak ada lobi aktif.");
-        const res = game.addPlayer(author); if (!res.success) return message.reply(`❗ ${res.message}`);
-        await game.updateLobbyMessage(); await message.reply("✅ Berhasil bergabung!");
-    } else if (sub === 'play') {
-        const game = gameInstances.get(cid); if (!game) return message.reply("❌ Tidak ada lobi.");
+        game.message = await message.channel.send({ embeds: [embed] });
+        game.addPlayer(author);
+        gameInstances.set(channelId, game);
+    } 
+    // === Sub-perintah JOIN ===
+    else if (subCommand === 'join') {
+        const game = gameInstances.get(channelId);
+        if (!game || game.state !== 'LOBBY') return message.reply("❌ Tidak ada lobi aktif.");
+        const result = game.addPlayer(author);
+        if (!result.success) return message.reply(`❗ ${result.message}`);
+        await game.updateLobbyMessage();
+        await message.reply("✅ Berhasil bergabung!");
+    } 
+    // === Sub-perintah PLAY ===
+    else if (subCommand === 'play') {
+        const game = gameInstances.get(channelId);
+        if (!game) return message.reply("❌ Tidak ada lobi.");
         if (game.initiator.id !== author.id) return message.reply("❌ Hanya pembuat lobi.");
         if (game.players.size < 5) return message.reply(`❌ Butuh min. 5 pemain (saat ini ${game.players.size}).`);
         await game.start();
-    } else if (sub === 'end') {
-        const game = gameInstances.get(cid); if (!game) return message.reply("❌ Tidak ada lobi.");
+    } 
+    // === Sub-perintah END ===
+    else if (subCommand === 'end') {
+        const game = gameInstances.get(channelId);
+        if (!game) return message.reply("❌ Tidak ada lobi.");
         if (game.initiator.id !== author.id) return message.reply("❌ Hanya pembuat lobi.");
-        clearTimeout(game.timer); gameInstances.delete(cid);
+        clearTimeout(game.timer);
+        gameInstances.delete(channelId);
         game.players.forEach(p => playerGameMap.delete(p.member.id));
         await game.message.edit({ content: "Lobi dibatalkan.", embeds: [], components: [] });
         await message.reply("✅ Lobi permainan telah dibatalkan.");
+    }
+    // === Sub-perintah LEAVE ===
+    else if (subCommand === 'leave') {
+        const game = gameInstances.get(channelId);
+        if (!game) return message.reply("❌ Tidak ada lobi aktif.");
+        if (game.state !== 'LOBBY') return message.reply("❌ Tidak bisa keluar saat permainan sedang berjalan.");
+        if (!Array.from(game.players.values()).some(p => p.member.id === author.id)) return message.reply("❌ Kamu tidak ada di lobi ini.");
+        if (game.initiator.id === author.id) return message.reply("❌ Pembuat lobi tidak bisa keluar, gunakan `!ww end`.");
+        
+        game.players.delete(author.id);
+        playerGameMap.delete(author.id);
+        await game.updateLobbyMessage();
+        await message.reply("✅ Kamu berhasil keluar dari lobi.");
+    }
+    // [BARU] Sub-perintah ROLE
+    else if (subCommand === 'role') {
+        const roleEmbed = new EmbedBuilder()
+            .setColor(0x5865F2)
+            .setTitle("🐺 Daftar Peran Werewolf")
+            .setDescription("Berikut adalah semua peran yang mungkin ada di dalam permainan ini, tergantung jumlah pemain:")
+            .setTimestamp();
+
+        for (const roleKey in ROLES) {
+            const role = ROLES[roleKey];
+            roleEmbed.addFields({
+                name: `${role.emoji} ${role.name} (Tim ${role.team})`,
+                value: role.description
+            });
+        }
+        
+        await message.reply({ embeds: [roleEmbed] });
     }
   },
   werewolfManager

@@ -1,4 +1,4 @@
-# AQUA BOT - BETA TEST
+# BETABOTZ BOT DC - BETA TEST
 
 Bot Discord multifungsi berbasis Node.js yang modern dan kaya fitur. Dibuat untuk menyediakan hiburan, utilitas, moderasi, dan sistem permainan yang canggih untuk komunitas Discord.
 

@@ -1,13 +1,20 @@
-# AQUA BOT - BETA TEST
+# BETABOTZ BOT DC - BETA TEST
 
 Bot Discord multifungsi berbasis Node.js yang modern dan kaya fitur. Dibuat untuk menyediakan hiburan, utilitas, moderasi, dan sistem permainan yang canggih untuk komunitas Discord.
 
 ---
+## ✨ Link Tutorial Setup
+
+| Ikon | Link                               | Deskripsi Singkat                                                                                                |
+| :--: | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+|  ▶️  | **https://youtu.be/Eog1H1CiAHw** | **Video tutorial setup** |
+ 
 
 ## ✨ Fitur Unggulan
 
 | Ikon | Fitur                               | Deskripsi Singkat                                                                                                |
 | :--: | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+|  ⚔️  | **RPG** | **Fiftur RPG di Bot Discord Dengan sistem DB terpusat** |
 |  💖  | **Waifu Gacha & Collection** | **(Fitur Utama)** Sistem gacha waifu dari API danafxc! Termasuk galeri gambar, klaim, nikah (permanen), peringkat, dan limit harian. |
 |  🎵  | **Sistem Musik Hybrid** | Memutar musik dari YouTube, dan secara cerdas menggunakan API cadangan untuk link Spotify & SoundCloud yang bermasalah. |
 |  🃏  | **Game Multiplayer Interaktif** | Mainkan game seperti **Qiu Qiu** dengan sistem taruhan, **Tic Tac Toe**, **Hompimpa**, dan **Coinflip** antar pemain.    |

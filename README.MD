@@ -3,6 +3,12 @@
 Bot Discord multifungsi berbasis Node.js yang modern dan kaya fitur. Dibuat untuk menyediakan hiburan, utilitas, moderasi, dan sistem permainan yang canggih untuk komunitas Discord.
 
 ---
+## ✨ Link Tutorial Setup
+
+| Ikon | Link                               | Deskripsi Singkat                                                                                                |
+| :--: | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+|  ▶️  | **https://youtu.be/Eog1H1CiAHw** | **Video tutorial setup** |
+ 
 
 ## ✨ Fitur Unggulan
 

@@ -27,7 +27,7 @@ Bot Discord multifungsi berbasis Node.js yang modern dan kaya fitur. Dibuat untu
 ## 📚 Daftar Perintah Lengkap
 
 ### 🎮 Game
-- `/waifu <sub-command>`: Sistem Gacha Waifu.
+- `!waifu`: Sistem Gacha Waifu.
 - `!qiu <start/join/deal/end>`: Game kartu Qiu Qiu (2-10 pemain) dengan taruhan.
 - `!tictactoe @user`: Main Tic Tac Toe dengan teman.
 - `!hompimpa <start/join/play>`: Game Hompimpa untuk menentukan pemenang/pecundang.

@@ -94,7 +94,6 @@ async function checkWeatherReminders() {
 async function checkQuake() {
     if (!clientInstance) return;
     try {
-        // [DIPERBARUI] Menggunakan endpoint API baru Anda
         const url = `https://api.danafxc.my.id/api/gempa?apikey=${config.api.apiKey}`;
         const response = await fetch(url);
         const result = await response.json();

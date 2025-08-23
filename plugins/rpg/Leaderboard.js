@@ -9,7 +9,7 @@ const config = require('../../config');
  */
 async function fetchLeaderboard(type) {
     try {
-        const url = `${config.api.baseUrl}/rpg/leaderboard?type=${type}&apikey=${config.api.apiKey}`;
+        const url = `${config.api.baseUrl}/features/rpg/leaderboard?type=${type}&apikey=${config.api.apiKey}`;
         const response = await axios.get(url);
         if (response.data && response.data.status) {
             return response.data.data; // Mengembalikan array pengguna yang sudah diurutkan
@@ -73,7 +73,7 @@ module.exports = {
                 .setDescription("Peringkat pengguna berdasarkan `Level` dan `XP` tertinggi.");
 
             leaderboardText = leaderboardData.slice(0, 10).map((user, index) => {
-                return `**${index + 1}.** ${user.username || 'Unknown'} - **Level ${user.level || 1}** (${(user.exp || 0).toLocaleString('id-ID')} XP)`;
+                return `**${index + 1}.** ${user.username || 'Unknown'} - **Level ${user.level || 1}**`;
             }).join('\n');
         }
 

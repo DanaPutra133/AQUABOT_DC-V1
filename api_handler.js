@@ -20,7 +20,7 @@ const api = axios.create({
  */
 async function getUser(userId, username) {
     try {
-        const response = await api.get(`/rpg/user/${userId}`, {
+        const response = await api.get(`/features/rpg/user/${userId}`, {
             params: { username } 
         });
         return response.data.data; 
@@ -28,6 +28,100 @@ async function getUser(userId, username) {
         console.error(`[API Handler] Gagal GET user ${userId}:`, error.response?.data || error.message);
         throw new Error("Gagal terhubung ke server database.");
     }
+}
+
+async function getAllUsers() {
+    try {
+        const response = await api.get(`/features/rpg/users`);
+        if (response.data && response.data.status) {
+            return response.data.data.users; 
+        }
+        throw new Error("API tidak mengembalikan data pengguna yang valid.");
+    } catch (error) {
+        console.error(`[API Handler] Gagal GET all users:`, error.response?.data || error.message);
+        throw new Error("Gagal mengambil daftar pengguna dari server database.");
+    }
+}
+
+// Reminder cuaca
+
+async function getWeatherReminders() {
+    try {
+        const response = await api.get('/features/reminders/weather');
+        return response.data.data || [];
+    } catch (error) {
+        console.error(`[API Handler] Gagal GET weather reminders:`, error.response?.data || error.message);
+        return []; 
+    }
+}
+
+async function addWeatherReminder(channelId, time, city) {
+    const url = `/features/reminders/weather?Ch=${channelId}&waktu=${time}&kota=${encodeURIComponent(city)}`;
+    const response = await api.post(url);
+    return response.data;
+}
+
+async function updateWeatherReminder(channelId, time, city) {
+    const url = `/features/reminders/weather/${channelId}?waktu=${time}&kota=${encodeURIComponent(city)}`;
+    const response = await api.put(url);
+    return response.data;
+}
+
+async function deleteWeatherReminder(channelId) {
+    const response = await api.delete(`/features/reminders/weather/${channelId}`);
+    return response.data;
+}
+
+
+//gempa
+
+async function getQuakeReminders() {
+    try {
+        const response = await api.get('/features/reminders/quake');
+        return response.data.data || [];
+    } catch (error) {
+        console.error(`[API Handler] Gagal GET quake reminders:`, error.response?.data || error.message);
+        return [];
+    }
+}
+
+
+async function addQuakeReminder(channelId) {
+    const response = await api.post(`/features/reminders/quake?Ch=${channelId}`);
+    return response.data;
+}
+
+async function deleteQuakeReminder(channelId) {
+    const response = await api.delete(`/features/reminders/quake/${channelId}`);
+    return response.data;
+}
+
+async function getPrayerReminders() {
+    try {
+        const response = await api.get('/features/reminders/sholat');
+        return response.data.data || [];
+    } catch (error) {
+        console.error(`[API Handler] Gagal GET sholat reminders:`, error.response?.data?.message);
+        return [];
+    }
+}
+
+async function setPrayerReminder(channelId, city) {
+    // Menggunakan POST untuk menambah, PUT untuk update
+    const reminders = await getPrayerReminders();
+    const existing = reminders.find(r => r.Ch === channelId);
+    if (existing) { // Jika sudah ada, update
+        const response = await api.put(`/features/reminders/sholat/${channelId}?kota=${encodeURIComponent(city)}`);
+        return response.data;
+    } else { // Jika belum ada, buat baru
+        const response = await api.post(`/features/reminders/sholat?Ch=${channelId}&kota=${encodeURIComponent(city)}`);
+        return response.data;
+    }
+}
+
+async function deletePrayerReminder(channelId) {
+    const response = await api.delete(`/features/reminders/sholat/${channelId}`);
+    return response.data;
 }
 
 /**
@@ -39,7 +133,7 @@ async function getUser(userId, username) {
 async function updateUser(userId, userData) {
     try {
         // apikey juga otomatis ditambahkan di sini
-        const response = await api.post(`/rpg/user/${userId}`, userData);
+        const response = await api.post(`/features/rpg/user/${userId}`, userData);
         return response.data;
     } catch (error) {
         console.error(`[API Handler] Gagal POST user ${userId}:`, error.response?.data || error.message);
@@ -47,4 +141,4 @@ async function updateUser(userId, userData) {
     }
 }
 
-module.exports = { getUser, updateUser };
+module.exports = { getUser, updateUser, getAllUsers, getWeatherReminders, addWeatherReminder, updateWeatherReminder, deleteWeatherReminder, getQuakeReminders, addQuakeReminder, deleteQuakeReminder, getPrayerReminders, setPrayerReminder, deletePrayerReminder };

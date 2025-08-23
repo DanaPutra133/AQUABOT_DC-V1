@@ -17,3 +17,7 @@ plugins/antikatakasar_config.json
 database.json
 banned_users.json
 birthdays.json
+quake_cache.json
+birthday_configs.json
+birthday_data.json
+package-lock.json

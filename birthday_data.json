@@ -1,1 +1,70 @@
-{}
+{
+  "1294278656818024542": {
+    "birthdays": [
+      {
+        "userId": "678112292633706527",
+        "name": "kok0nuts_",
+        "avatar": "https://cdn.discordapp.com/avatars/678112292633706527/d86d4d761f07f2e7dfb579cac1775235.webp",
+        "day": 10,
+        "month": 8,
+        "year": 2005
+      }
+    ],
+    "configs": {}
+  },
+  "1248939308501569536": {
+    "birthdays": [
+      {
+        "userId": "517280401803313153",
+        "name": "azure_requiem",
+        "avatar": "https://cdn.discordapp.com/avatars/517280401803313153/1ec98fed2c69e1030dabcba2df1fbbb7.webp",
+        "day": 10,
+        "month": 8,
+        "year": 2009
+      },
+      {
+        "userId": "998824315170586674",
+        "name": "yanstian",
+        "avatar": "https://cdn.discordapp.com/avatars/998824315170586674/2f21fa70be037a643db5420ee82e0ded.webp",
+        "day": 9,
+        "month": 8,
+        "year": 1994
+      },
+      {
+        "userId": "500542518467756042",
+        "name": "markhdr_0",
+        "avatar": "https://cdn.discordapp.com/avatars/500542518467756042/6acb90ffea6686d92f67d429c937ffa3.webp",
+        "day": 12,
+        "month": 8,
+        "year": 1987
+      }
+    ],
+    "configs": {
+      "1248939308501569540": {
+        "time": "13:12",
+        "mentionRoleIds": [
+          "1399565072258437150",
+          "1399565370947535071"
+        ],
+        "isStaffReminder": false,
+        "daysInAdvance": 0
+      },
+      "1388157961729474622": {
+        "time": "10:20",
+        "mentionRoleIds": [
+          "1399565072258437150"
+        ],
+        "isStaffReminder": false,
+        "daysInAdvance": 0
+      },
+      "1388115205548019874": {
+        "time": "10:26",
+        "mentionRoleIds": [
+          "1379090789451173888"
+        ],
+        "isStaffReminder": true,
+        "daysInAdvance": 3
+      }
+    }
+  }
+}

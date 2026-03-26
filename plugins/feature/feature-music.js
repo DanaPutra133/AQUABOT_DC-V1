@@ -1,5 +1,5 @@
 const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, NoSubscriberBehavior } = require("@discordjs/voice");
-const { EmbedBuilder, ChannelType } = require("discord.js");
+const { EmbedBuilder, ChannelType, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
 const axios = require("axios");
 const config = require("../../config");
 const fs = require("fs");
@@ -7,7 +7,7 @@ const path = require("path");
 const { spawn } = require('child_process');
 const { findInCache, getCacheKey, tempDir } = require('../../cache_handler'); 
 const { QueueRepeatMode } = require('discord-player'); 
-const ytSearch = require("yt-search"); // <-- MODULE PENCARIAN YOUTUBE DITAMBAHKAN
+const ytSearch = require("yt-search");
 
 const queueMap = new Map();
 const autoLeaveTimers = new Map();
@@ -44,20 +44,16 @@ async function fetchTrackInfo(input) {
     // 3. JIKA INPUT BERUPA LINK YOUTUBE ATAU PENCARIAN TEKS/JUDUL
     else {
         let ytVideo;
-        
-        // Lakukan pencarian menggunakan yt-search (berlaku untuk link YT maupun kata kunci teks)
-        // Ini memastikan kita SELALU mendapatkan judul dan durasi yang akurat untuk Queue
         const searchResult = await ytSearch(input);
         
         if (searchResult && searchResult.videos.length > 0) {
-            ytVideo = searchResult.videos[0]; // Ambil hasil pencarian teratas
+            ytVideo = searchResult.videos[0];
         }
         
         if (!ytVideo) {
             throw new Error("Lagu tidak ditemukan di YouTube. Coba kata kunci lain.");
         }
 
-        // Setelah dapat URL aslinya dari yt-search, baru kita tembak ke API untuk ambil MP3-nya
         const { data } = await axios.get(`https://api.betabotz.eu.org/api/download/yt?url=${encodeURIComponent(ytVideo.url)}&apikey=${config.apikey_lann}`);
         const d = data?.result;
         
@@ -65,10 +61,10 @@ async function fetchTrackInfo(input) {
         
         trackInfo = { 
             url: ytVideo.url, 
-            title: ytVideo.title, // Judul dijamin valid
+            title: ytVideo.title, 
             thumbnail: ytVideo.thumbnail, 
-            audioUrl: d.mp3, // Link stream audio
-            duration: ytVideo.timestamp || "-" // Durasi dijamin valid
+            audioUrl: d.mp3, 
+            duration: ytVideo.timestamp || "-" 
         };
     }
     
@@ -240,7 +236,8 @@ async function handlePlay(msg, client, args) {
           "• `!stop` - Menghentikan musik dan membersihkan antrian.\n" +
           "• `!pause` - Menjeda lagu.\n" +
           "• `!resume` - Melanjutkan lagi yang dijeda.\n" +
-          "• `!repeat` - Mengubah mode pengulangan (Mati -> Lagu -> Antrian).\n\n" +
+          "• `!repeat` - Mengubah mode pengulangan (Mati -> Lagu -> Antrian).\n" +
+          "• `!fix` - Mengatasi masalah suara bot patah-patah atau macet.\n\n" +
           "**📜 Informasi Antrian**\n" +
           "• `!queue` - Menampilkan daftar lagu di antrian.\n*(Alias: `!q`, `!list`, `!playlist`, `!np`)*"
       )
@@ -292,7 +289,7 @@ async function handlePlay(msg, client, args) {
                 .setTitle("🎶 Lagu Ditambahkan ke Antrian")
                 .setDescription(`[${track.title}](${track.url})`)
                 .setThumbnail(track.thumbnail)
-                .addFields({ name: "Posisi di antrian", value: `${data.queue.length - 1}` }); // -1 karena lagu pertama sedang diputar
+                .addFields({ name: "Posisi di antrian", value: `${data.queue.length - 1}` }); 
             await msg.channel.send({ embeds: [embed] });
         }
     } catch (e) {
@@ -363,6 +360,94 @@ async function handleResume(msg) {
     msg.channel.send({ embeds: [new EmbedBuilder().setColor(0x2ecc71).setTitle("▶️ Playback Dilanjutkan")] });
 }
 
+// ==================== FITUR AUDIO FIX ====================
+async function handleFix(msg) {
+    const guildId = msg.guild.id;
+    const data = queueMap.get(guildId);
+
+    if (!data || !data.connection) {
+        return msg.reply({ embeds: [new EmbedBuilder().setColor(0xe74c3c).setTitle("❌ Tidak Ada Sesi Musik").setDescription("Bot sedang tidak memutar musik di server ini.")] });
+    }
+
+    const embed = new EmbedBuilder()
+        .setColor(0x3498db)
+        .setTitle("🛠️ Audio Troubleshooting")
+        .setDescription("Jika suara bot patah-patah, lag, atau macet, silakan pilih salah satu opsi di bawah ini:\n\n" +
+            "🔄 **Reconnect**: Bot akan memancing ulang sinyal voice tanpa menghapus antrian.\n" +
+            "♻️ **Reset Player**: Mereset pemutar musik dan mengulang lagu yang sedang diputar (Mulai dari 0:00).\n" +
+            "🛑 **Disconnect**: Menghentikan bot secara paksa dan membuang semua antrian."
+        );
+
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('fix_reconnect').setLabel('Reconnect').setStyle(ButtonStyle.Primary).setEmoji('🔄'),
+        new ButtonBuilder().setCustomId('fix_reset').setLabel('Reset Player').setStyle(ButtonStyle.Secondary).setEmoji('♻️'),
+        new ButtonBuilder().setCustomId('fix_disconnect').setLabel('Disconnect').setStyle(ButtonStyle.Danger).setEmoji('🛑')
+    );
+
+    const replyMsg = await msg.reply({ embeds: [embed], components: [row] });
+
+    // Menyaring agar hanya user yang memanggil command yang bisa klik tombolnya (aktif selama 60 detik)
+    const collector = replyMsg.createMessageComponentCollector({ time: 60000 });
+
+    collector.on('collect', async (interaction) => {
+        if (interaction.user.id !== msg.author.id) {
+            return interaction.reply({ content: "❌ Hanya yang mengetik command yang bisa memencet tombol ini.", ephemeral: true });
+        }
+
+        const currentData = queueMap.get(guildId);
+        if (!currentData || !currentData.connection) {
+            return interaction.update({ content: "❌ Sesi musik sudah berakhir.", embeds: [], components: [] });
+        }
+
+        if (interaction.customId === 'fix_reconnect') {
+            await interaction.deferUpdate();
+            try {
+                // Proses re-join jaringan suara untuk merefresh jalur UDP Discord
+                const voiceChannelId = currentData.connection.joinConfig.channelId;
+                currentData.connection.destroy();
+                
+                const newConnection = joinVoiceChannel({
+                    channelId: voiceChannelId,
+                    guildId: guildId,
+                    adapterCreator: msg.guild.voiceAdapterCreator,
+                    selfDeaf: true
+                });
+                newConnection.subscribe(currentData.player);
+                currentData.connection = newConnection;
+
+                await interaction.followUp({ content: "✅ Berhasil **Reconnect** ke Voice Channel. Suara seharusnya sudah lancar.", ephemeral: true });
+            } catch (e) {
+                await interaction.followUp({ content: "❌ Gagal reconnect.", ephemeral: true });
+            }
+        } 
+        else if (interaction.customId === 'fix_reset') {
+            await interaction.deferUpdate();
+            const track = currentData.queue[0];
+            if (track) {
+                // Menduplikat lagu saat ini ke antrian terdepan lagi agar bisa di-trigger ulang
+                currentData.queue.unshift(track);
+                currentData.player.stop(true); // Memancing event AudioPlayerStatus.Idle
+                await interaction.followUp({ content: "♻️ **Player Direset**. Lagu sedang dimuat ulang...", ephemeral: true });
+            } else {
+                await interaction.followUp({ content: "❌ Tidak ada lagu yang bisa direset.", ephemeral: true });
+            }
+        } 
+        else if (interaction.customId === 'fix_disconnect') {
+            await interaction.deferUpdate();
+            currentData.queue = [];
+            currentData.player?.stop(true);
+            if (currentData.connection?.state.status !== 'destroyed') currentData.connection?.destroy();
+            queueMap.delete(guildId);
+            await interaction.followUp({ content: "🛑 Bot berhasil **Disconnect** dan antrian dibersihkan.", ephemeral: true });
+            collector.stop();
+        }
+    });
+
+    collector.on('end', () => {
+        replyMsg.edit({ components: [] }).catch(()=>{});
+    });
+}
+
 module.exports = {
   prefix: "play",
   aliases: ["music", "musik", "p"],
@@ -376,6 +461,7 @@ module.exports = {
     pause: { handler: handlePause, aliases: [] },
     resume: { handler: handleResume, aliases: ["continue"] },
     queue: { handler: handleQueue, aliases: ["q", "list", "playlist", "np", "nowplaying"] },
-    repeat: { handler: handleRepeat, aliases: ["loop"] }
+    repeat: { handler: handleRepeat, aliases: ["loop"] },
+    fix: { handler: handleFix, aliases: ["repair"] } // <-- COMMAND FIX SUDAH TERSAMBUNG
   },
 };

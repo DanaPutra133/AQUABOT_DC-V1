@@ -5,106 +5,75 @@ const config = require("../../config");
 const fs = require("fs");
 const path = require("path");
 const { spawn } = require('child_process');
-const { findInCache, getCacheKey, tempDir } = require('../../cache_handler'); // Impor cache handler
+const { findInCache, getCacheKey, tempDir } = require('../../cache_handler'); 
 const { QueueRepeatMode } = require('discord-player'); 
+const ytSearch = require("yt-search"); // <-- MODULE PENCARIAN YOUTUBE DITAMBAHKAN
 
 const queueMap = new Map();
 const autoLeaveTimers = new Map();
 
 async function fetchTrackInfo(input) {
     let trackInfo;
+    
+    // 1. CEK JIKA INPUT ADALAH LINK SPOTIFY
     if (/spotify\.com/i.test(input)) {
         const { data } = await axios.get(`https://api.betabotz.eu.org/api/download/spotify?url=${encodeURIComponent(input)}&apikey=${config.apikey_lann}`);
         const d = data?.result?.data;
         if (!d) throw new Error("Gagal mengambil info Spotify.");
-        trackInfo = { url: input, title: d.title, thumbnail: d.thumbnail, audioUrl: d.url, user: null, duration: d.duration || "-" };
-    } else if (/soundcloud\.com/i.test(input)) {
+        trackInfo = { 
+            url: input, 
+            title: d.title || "Spotify Track", 
+            thumbnail: d.thumbnail, 
+            audioUrl: d.url, 
+            duration: d.duration || "-" 
+        };
+    } 
+    // 2. CEK JIKA INPUT ADALAH LINK SOUNDCLOUD
+    else if (/soundcloud\.com/i.test(input)) {
         const { data } = await axios.get(`https://api.betabotz.eu.org/api/download/soundcloud?url=${encodeURIComponent(input)}&apikey=${config.apikey_lann}`);
         const d = data?.result;
         if (!d) throw new Error("Gagal mengambil info SoundCloud.");
-        trackInfo = { url: input, title: d.title, thumbnail: d.thumbnail, audioUrl: d.url, user: null, duration: d.duration || "-" };
-    } else if (/youtube\.com|youtu\.be/i.test(input)) {
-        const { data } = await axios.get(`https://api.betabotz.eu.org/api/download/yt?url=${encodeURIComponent(input)}&apikey=${config.apikey_lann}`);
-        const d = data?.result;
-        if (!d || !d.mp3) throw new Error("Gagal mengambil link audio dari API YouTube.");
-        trackInfo = { url: input, title: d.title || "YouTube Audio", thumbnail: d.thumb || d.thumbnail || "", audioUrl: d.mp3, user: null,duration: (d.duration && (d.duration.timestamp || d.duration)) || "-"
+        trackInfo = { 
+            url: input, 
+            title: d.title || "SoundCloud Track", 
+            thumbnail: d.thumbnail, 
+            audioUrl: d.url, 
+            duration: d.duration || "-" 
         };
-    } else {
-        throw new Error("Input tidak dikenali. Harap masukkan URL YouTube, Spotify, SoundCloud, atau kata kunci pencarian.");
+    } 
+    // 3. JIKA INPUT BERUPA LINK YOUTUBE ATAU PENCARIAN TEKS/JUDUL
+    else {
+        let ytVideo;
+        
+        // Lakukan pencarian menggunakan yt-search (berlaku untuk link YT maupun kata kunci teks)
+        // Ini memastikan kita SELALU mendapatkan judul dan durasi yang akurat untuk Queue
+        const searchResult = await ytSearch(input);
+        
+        if (searchResult && searchResult.videos.length > 0) {
+            ytVideo = searchResult.videos[0]; // Ambil hasil pencarian teratas
+        }
+        
+        if (!ytVideo) {
+            throw new Error("Lagu tidak ditemukan di YouTube. Coba kata kunci lain.");
+        }
+
+        // Setelah dapat URL aslinya dari yt-search, baru kita tembak ke API untuk ambil MP3-nya
+        const { data } = await axios.get(`https://api.betabotz.eu.org/api/download/yt?url=${encodeURIComponent(ytVideo.url)}&apikey=${config.apikey_lann}`);
+        const d = data?.result;
+        
+        if (!d || !d.mp3) throw new Error("Gagal mengambil link audio dari server.");
+        
+        trackInfo = { 
+            url: ytVideo.url, 
+            title: ytVideo.title, // Judul dijamin valid
+            thumbnail: ytVideo.thumbnail, 
+            audioUrl: d.mp3, // Link stream audio
+            duration: ytVideo.timestamp || "-" // Durasi dijamin valid
+        };
     }
+    
     return trackInfo;
 }
-
-// --- Fungsi Pengambilan Data (fetchYouTubeInfo, fetchSpotifyInfo, fetchSoundCloudInfo) ---
-// async function fetchYouTubeInfo(input) {
-//   if (/^https?:\/\/(www\.)?(youtube\.com|youtu\.be)\//i.test(input)) {
-//     let id = null;
-//     try { id = yts.getId(input); } catch (e) { /* Lanjutkan */ }
-//     if (id) {
-//       const res = await yts({ videoId: id });
-//       if (res) return { source: 'youtube', url: res.url, title: res.title, duration: res.duration.timestamp || "-", thumbnail: res.thumbnail || "" };
-//     }
-//   }
-//   const res = await yts(input);
-//   const vid = res.videos?.[0];
-//   if (vid) return { source: 'youtube', url: vid.url, title: vid.title, duration: vid.duration.timestamp || "-", thumbnail: vid.thumbnail || "" };
-//   throw new Error("Video YouTube tidak ditemukan.");
-// }
-
-// async function fetchSpotifyInfo(spotifyUrl) {
-//     const endpoint = `https://api.betabotz.eu.org/api/download/spotify?url=${encodeURIComponent(spotifyUrl)}&apikey=${config.apikey_lann}`;
-//     try {
-//         const { data } = await axios.get(endpoint, { timeout: 20000 });
-//         const trackData = data?.result?.data;
-//         if (trackData) return { source: 'spotify', url: spotifyUrl, title: trackData.title || 'Unknown', artist: trackData.artist?.name || 'Unknown', duration: trackData.duration || '-', thumbnail: trackData.thumbnail || '', audioUrl: trackData.url };
-//         throw new Error(data.message || "API Spotify gagal mengambil data.");
-//     } catch (e) {
-//         throw new Error("API Spotify error: " + (e.response?.data?.message || e.message || e));
-//     }
-// }
-
-// async function fetchSoundCloudInfo(soundcloudUrl) {
-//     const endpoint = `https://api.betabotz.eu.org/api/download/soundcloud?url=${encodeURIComponent(soundcloudUrl)}&apikey=${config.apikey_lann}`;
-//     try {
-//         const { data } = await axios.get(endpoint, { timeout: 20000 });
-//         const trackData = data?.result;
-//         if (trackData) return { source: 'soundcloud', url: soundcloudUrl, title: trackData.title || 'Unknown', duration: 'N/A', thumbnail: trackData.thumbnail || '', audioUrl: trackData.url };
-//         throw new Error(data.message || "API SoundCloud gagal mengambil data.");
-//     } catch (e) {
-//         throw new Error("API SoundCloud error: " + (e.response?.data?.message || e.message || e));
-//     }
-// }
-
-// async function getAudioUrlFromAPI(youtubeUrl) {
-//   const endpoint = `https://api.betabotz.eu.org/api/download/yt?url=${encodeURIComponent(youtubeUrl)}&apikey=${config.apikey_lann}`;
-//   try {
-//     const { data } = await axios.get(endpoint, { timeout: 20000 });
-//     if (data?.result?.mp3) return data.result.mp3;
-//     throw new Error(data.message || "API gagal mengambil audio.");
-//   } catch (e) {
-//     throw new Error("API error: " + (e.response?.data?.message || e.message));
-//   }
-// }
-
-// // --- Fungsi Utilitas & Player ---
-// async function streamFromUrl(url) {
-//   const tmpFile = tmp.fileSync({ postfix: ".mp3" });
-//   const writer = fs.createWriteStream(tmpFile.name);
-//   try {
-//     const res = await axios.get(url, { responseType: "stream", timeout: 10 * 60 * 1000 });
-//     await new Promise((resolve, reject) => {
-//       res.data.pipe(writer).on("finish", resolve).on("error", reject);
-//     });
-//     const stream = createReadStream(tmpFile.name);
-//     stream.on("close", () => {
-//       try { fs.unlinkSync(tmpFile.name); } catch (e) { /* abaikan */ }
-//     });
-//     return stream;
-//   } catch (e) {
-//     try { fs.unlinkSync(tmpFile.name); } catch (unlinkErr) { /* abaikan */ }
-//     throw new Error(`Gagal mengunduh audio: ${e.message || e}`);
-//   }
-// }
 
 async function handleRepeat(message, args) {
     const data = queueMap.get(message.guild.id);
@@ -120,7 +89,6 @@ async function handleRepeat(message, args) {
     } else if (modeArg === 'off') {
         newMode = 'off'; modeName = 'Mati';
     } else {
-        // Jika tidak ada argumen, putar mode
         if (data.repeatMode === 'off') { newMode = 'song'; modeName = 'Lagu'; }
         else if (data.repeatMode === 'song') { newMode = 'queue'; modeName = 'Antrian'; }
         else { newMode = 'off'; modeName = 'Mati'; }
@@ -130,13 +98,6 @@ async function handleRepeat(message, args) {
     const embed = new EmbedBuilder().setColor(0x2ECC71).setDescription(`🔁 Mode pengulangan diatur ke: **${modeName}**`);
     return message.reply({ embeds: [embed] });
 }
-
-// function buildAutoLeaveEmbed() {
-//   return new EmbedBuilder()
-//     .setColor(0xe67e22)
-//     .setTitle("⏳ Antrian Kosong")
-//     .setDescription("Bot akan keluar dari voice channel dalam **3 menit** jika tidak ada lagu baru yang ditambahkan.");
-// }
 
 function downloadAndCache(audioUrl, cachePath) {
     return new Promise(async (resolve, reject) => {
@@ -219,7 +180,7 @@ async function playNext(guildId) {
     if (autoLeaveTimers.has(guildId)) { clearTimeout(autoLeaveTimers.get(guildId)); autoLeaveTimers.delete(guildId); }
 
     if (!data.queue.length) {
-        data.textChannel.send({ embeds: [new EmbedBuilder().setColor(0xe67e22).setTitle("⏳ Antrian Kosong").setDescription("Bot akan keluar dalam 3 menit.")] });
+        data.textChannel.send({ embeds: [new EmbedBuilder().setColor(0xe67e22).setTitle("⏳ Antrian Kosong").setDescription("Bot akan keluar dalam 3 menit jika tidak ada lagu baru.")] });
         const timer = setTimeout(() => {
             const currentData = queueMap.get(guildId);
             if (currentData?.connection?.state.status !== 'destroyed') {
@@ -245,7 +206,11 @@ async function playNext(guildId) {
         const resource = createAudioResource(streamPath);
         data.player.play(resource);
 
-        let embed = new EmbedBuilder().setColor(0x7289DA).setTitle("▶️ Sedang Diputar").setDescription(`[${track.title}](${track.url})`).setFooter({ text: `Diminta oleh: ${track.user.username}`, iconURL: track.user.displayAvatarURL() });
+        let embed = new EmbedBuilder()
+            .setColor(0x7289DA)
+            .setTitle("▶️ Sedang Diputar")
+            .setDescription(`[${track.title}](${track.url})`)
+            .setFooter({ text: `Diminta oleh: ${track.user.username}`, iconURL: track.user.displayAvatarURL() });
         if (track.thumbnail && typeof track.thumbnail === 'string' && track.thumbnail.trim() !== '') {
             embed = embed.setThumbnail(track.thumbnail);
         }
@@ -258,12 +223,6 @@ async function playNext(guildId) {
     }
 }
 
-// --- Handler untuk Perintah ---
-
-/**
- * [DIPERBARUI] Handler untuk !play.
- * Logika notifikasi "Now Playing" untuk lagu pertama dipindahkan ke playNext.
- */
 async function handlePlay(msg, client, args) {
   const voiceChannel = msg.member?.voice?.channel;
   if (!voiceChannel || voiceChannel.type !== ChannelType.GuildVoice) {
@@ -274,25 +233,25 @@ async function handlePlay(msg, client, args) {
     const helpEmbed = new EmbedBuilder()
       .setColor(0x7289DA)
       .setTitle("🎵 Panduan Perintah Musik")
-
-.setDescription("Berikut adalah perintah yang tersedia untuk fitur musik:\n\n" +
-    "**▶️ Memutar Lagu**\n`!play <judul lagu / link>`\nBot mendukung link dari YouTube, Spotify, dan SoundCloud.\n\n" +
-    "**⏯️ Kontrol Pemutaran**\n" +
-    "• `!skip` - Melewatkan lagu yang sedang diputar.\n" +
-    "• `!stop` - Menghentikan musik dan membersihkan antrian.\n" +
-    "• `!pause` - Menjeda lagu.\n" +
-    "• `!resume` - Melanjutkan lagi yang dijeda.\n" +
-    "• `!repeat` - Mengubah mode pengulangan (Mati -> Lagu -> Antrian).\n\n" + // <-- Baris ini ditambahkan
-    "**📜 Informasi Antrian**\n" +
-    "• `!queue` - Menampilkan daftar lagu di antrian.\n*(Alias: `!q`, `!list`, `!playlist`, `!np`)*"
-)      .setFooter({ text: "Gunakan perintah di atas sesuai kebutuhan Anda." });
+      .setDescription("Berikut adalah perintah yang tersedia untuk fitur musik:\n\n" +
+          "**▶️ Memutar Lagu**\n`!play <judul lagu / link>`\nBot mendukung pencarian teks dan link dari YouTube, Spotify, dan SoundCloud.\n\n" +
+          "**⏯️ Kontrol Pemutaran**\n" +
+          "• `!skip` - Melewatkan lagu yang sedang diputar.\n" +
+          "• `!stop` - Menghentikan musik dan membersihkan antrian.\n" +
+          "• `!pause` - Menjeda lagu.\n" +
+          "• `!resume` - Melanjutkan lagi yang dijeda.\n" +
+          "• `!repeat` - Mengubah mode pengulangan (Mati -> Lagu -> Antrian).\n\n" +
+          "**📜 Informasi Antrian**\n" +
+          "• `!queue` - Menampilkan daftar lagu di antrian.\n*(Alias: `!q`, `!list`, `!playlist`, `!np`)*"
+      )
+      .setFooter({ text: "Gunakan perintah di atas sesuai kebutuhan Anda." });
     return msg.reply({ embeds: [helpEmbed] });
   }
 
   const input = args.join(" ");
   const loadingMsg = await msg.channel.send("🔍 Mencari lagu...");
     try {
-        const trackInfo = await fetchTrackInfo(args.join(" "));
+        const trackInfo = await fetchTrackInfo(input);
         await loadingMsg.delete().catch(()=>{});
 
         const guildId = msg.guild.id;
@@ -309,6 +268,7 @@ async function handlePlay(msg, client, args) {
                 const lastTrack = currentData.queue[0];
                 
                 if (currentData.repeatMode === 'song') {
+                    // Jangan shift queue, lagu yang sama akan diputar ulang
                 } else if (currentData.repeatMode === 'queue' && lastTrack) {
                     currentData.queue.push(currentData.queue.shift());
                 } else {
@@ -327,7 +287,12 @@ async function handlePlay(msg, client, args) {
         if (data.player.state.status !== AudioPlayerStatus.Playing) {
             await playNext(guildId);
         } else {
-            const embed = new EmbedBuilder().setColor(0x1abc9c).setTitle("🎶 Lagu Ditambahkan").setDescription(`[${track.title}](${track.url})`).setThumbnail(track.thumbnail).addFields({ name: "Posisi di antrian", value: `${data.queue.length}` });
+            const embed = new EmbedBuilder()
+                .setColor(0x1abc9c)
+                .setTitle("🎶 Lagu Ditambahkan ke Antrian")
+                .setDescription(`[${track.title}](${track.url})`)
+                .setThumbnail(track.thumbnail)
+                .addFields({ name: "Posisi di antrian", value: `${data.queue.length - 1}` }); // -1 karena lagu pertama sedang diputar
             await msg.channel.send({ embeds: [embed] });
         }
     } catch (e) {
@@ -335,7 +300,6 @@ async function handlePlay(msg, client, args) {
     }
 }
 
-// Handler untuk !skip, !stop, dll. tetap sama...
 async function handleSkip(msg) {
     const data = queueMap.get(msg.guild.id);
     if (!data || data.queue.length === 0) {
@@ -357,7 +321,12 @@ async function handleQueue(msg) {
     }
     const currentTrack = data.queue[0];
     const upcomingTracks = data.queue.slice(1);
-    const embed = new EmbedBuilder().setColor(0x00bfff).setTitle(`📜 Daftar Antrian Musik (${data.queue.length} Lagu)`).setThumbnail(currentTrack.thumbnail).addFields({ name: "▶️ Sedang Diputar", value: `[${currentTrack.title}](${currentTrack.url})\n**Durasi:** \`${currentTrack.duration}\` | **Diminta oleh:** <@${currentTrack.user.id}>` });
+    const embed = new EmbedBuilder()
+        .setColor(0x00bfff)
+        .setTitle(`📜 Daftar Antrian Musik (${data.queue.length} Lagu)`)
+        .setThumbnail(currentTrack.thumbnail)
+        .addFields({ name: "▶️ Sedang Diputar", value: `[${currentTrack.title}](${currentTrack.url})\n**Durasi:** \`${currentTrack.duration}\` | **Diminta oleh:** <@${currentTrack.user.id}>` });
+    
     if (upcomingTracks.length > 0) {
         const queueString = upcomingTracks.slice(0, 10).map((t, i) => `\`${i + 1}.\` [${t.title}](${t.url}) | \`${t.duration}\``).join('\n');
         const footerString = upcomingTracks.length > 10 ? `\n...dan ${upcomingTracks.length - 10} lagu lainnya.` : '';
@@ -376,7 +345,7 @@ async function handleStop(msg) {
     data.player?.stop(true);
     if (data.connection?.state.status !== 'destroyed') data.connection?.destroy();
     queueMap.delete(guildId);
-if (autoLeaveTimers.has(guildId)) { clearTimeout(autoLeaveTimers.get(guildId)); autoLeaveTimers.delete(guildId); }
+    if (autoLeaveTimers.has(guildId)) { clearTimeout(autoLeaveTimers.get(guildId)); autoLeaveTimers.delete(guildId); }
     msg.channel.send({ embeds: [new EmbedBuilder().setColor(0xe74c3c).setTitle("🛑 Antrian Dihentikan").setDescription("Antrian dibersihkan dan bot keluar dari voice channel.")] });
 }
 
@@ -396,17 +365,17 @@ async function handleResume(msg) {
 
 module.exports = {
   prefix: "play",
-  aliases: ["music", "musik"],
+  aliases: ["music", "musik", "p"],
   category: "feature",
   execute: async (msg, args, client) => {
     await handlePlay(msg, client, args);
   },
   subCommands: {
-    skip: { handler: handleSkip, aliases: [] },
-    stop: { handler: handleStop, aliases: ["end", "quit", "leave"] },
+    skip: { handler: handleSkip, aliases: ["s"] },
+    stop: { handler: handleStop, aliases: ["end", "quit", "leave", "dc"] },
     pause: { handler: handlePause, aliases: [] },
     resume: { handler: handleResume, aliases: ["continue"] },
-    queue: { handler: handleQueue, aliases: ["list", "playlist", "np", "nowplaying"] },
-    repeat: { handler: handleRepeat, aliases: ["repeat"] }
+    queue: { handler: handleQueue, aliases: ["q", "list", "playlist", "np", "nowplaying"] },
+    repeat: { handler: handleRepeat, aliases: ["loop"] }
   },
 };

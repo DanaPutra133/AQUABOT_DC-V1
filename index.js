@@ -61,7 +61,7 @@ const client = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent, // Penting untuk membaca isi pesan
-    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildMembers, // <--- INTENT MEMBER JOIN SUDAH ADA (BAGUS)
     GatewayIntentBits.GuildMessageReactions,
     GatewayIntentBits.GuildVoiceStates, // Penting untuk bot musik
   ],
@@ -93,6 +93,7 @@ async function getCachedUser(userId, username) {
   userCache.set(userId, { data: userData, timestamp: now });
   return userData;
 }
+
 // Custom plugin loader with error handling and logs
 function loadPluginsWithLogs(client) {
   const pluginsDir = path.join(__dirname, "plugins");
@@ -128,6 +129,7 @@ function loadPluginsWithLogs(client) {
 
   client.messageHandlers = []; // Untuk plugin dengan handleMessage
   client.autoHandlers = []; // Untuk plugin dengan handleAuto
+  client.joinHandlers = []; // <--- [DITAMBAHKAN] Untuk plugin dengan handleGuildMemberAdd
 
   for (const { path: filePath, folder: parentFolder } of allPluginFiles) {
     const fileName = path.basename(filePath);
@@ -164,27 +166,22 @@ function loadPluginsWithLogs(client) {
           });
         }
       }
+      
       // Registrasi sub-commands sebagai perintah/alias langsung jika diinginkan
       if (plugin.subCommands && typeof plugin.subCommands === "object") {
         for (const [subCmdName, subCmdData] of Object.entries(
           plugin.subCommands,
         )) {
           if (typeof subCmdData.handler === "function") {
-            // Pastikan ada fungsi handler
-            // Daftarkan sub-command itu sendiri sebagai perintah utama
-            // Ini memungkinkan `!toka` atau `!skip` langsung berfungsi
-            // Buat objek perintah temporer yang bisa dieksekusi
             const executableSubCommand = { execute: subCmdData.handler };
-
             client.prefixCommands.set(subCmdName, executableSubCommand);
             console.log(
               `[PLUGIN] Registered sub-command directly: ${subCmdName} (from ${fileName})`,
             );
 
-            // Daftarkan juga alias-aliasnya
             if (subCmdData.aliases && Array.isArray(subCmdData.aliases)) {
               subCmdData.aliases.forEach((alias) => {
-                client.prefixCommands.set(alias, executableSubCommand); // Gunakan objek yang sama
+                client.prefixCommands.set(alias, executableSubCommand); 
                 console.log(
                   `[PLUGIN] Registered alias for sub-command: ${alias} (from ${fileName})`,
                 );
@@ -218,11 +215,19 @@ function loadPluginsWithLogs(client) {
         client.messageHandlers.push(plugin.handleMessage);
         console.log(`[PLUGIN] Registered message handler for: ${fileName}`);
       }
+      
       // Registrasi handler auto
       if (typeof plugin.handleAuto === "function") {
         client.autoHandlers.push(plugin.handleAuto);
         console.log(`[PLUGIN] Registered auto handler for: ${fileName}`);
       }
+
+      // <--- [DITAMBAHKAN] Registrasi khusus event JOIN (handleGuildMemberAdd)
+      if (typeof plugin.handleGuildMemberAdd === "function") {
+        client.joinHandlers.push(plugin.handleGuildMemberAdd);
+        console.log(`[PLUGIN] Registered JOIN handler for: ${fileName}`);
+      }
+
     } catch (err) {
       pluginLoadErrors.push({
         file: parentFolder
@@ -340,7 +345,7 @@ client.on("interactionCreate", async (interaction) => {
     await command.execute(interaction, client);
     console.timeEnd(`[PERF] Command: /${interaction.commandName}`);
   } catch (error) {
-    // ... (Error handling Anda)
+    console.error("[Interaction Error]", error);
   } finally {
     // [LOGGING] Hentikan timer untuk seluruh proses
     console.timeEnd(`[PERF] Total Interaction: /${interaction.commandName}`);
@@ -349,12 +354,9 @@ client.on("interactionCreate", async (interaction) => {
 
 // Event yang dijalankan saat bot siap (ready)
 client.once("clientReady", async () => {
-  // 1. console.clear() dipindahkan ke paling atas
   console.clear();
-  // birthdayHandler.init(client);
   banManager.loadBans();
   antiBadwordManager.loadConfig();
-  // reminderHandler.init(client);
   const banner = `
 =========================================================
 ██████╗ ███████╗████████╗ █████╗ ██████╗  ██████╗ ████████╗███████╗
@@ -381,19 +383,12 @@ Owner: ${config.ownerId}
     status: "online",
   });
 
-  // Log ringkasan plugin (sudah benar)
   console.log("========== Ringkasan Pemuatan Plugin ==========");
-  // 'loadedPlugins' dan 'pluginLoadErrors' harus didefinisikan di atas (di dalam 'loadPluginsWithLogs')
-  // Pastikan variabel ini dapat diakses di sini.
-  // loadedPlugins.forEach((p) => console.log(`✔ Dimuat: ${p}`));
-  // if (pluginLoadErrors.length) { /* ... */ }
-  // Bagian untuk mengambil semua data slash command (sudah benar)
   const rest = new REST({ version: "10" }).setToken(config.token);
   const commands = [];
   const commandNames = new Set();
   for (const plugin of client.slashCommands.values()) {
     if (plugin.data) {
-      // Logika Anda untuk mengumpulkan 'commands' sudah benar
       if (Array.isArray(plugin.data)) {
         for (const dataObj of plugin.data) {
           if (dataObj?.name && !commandNames.has(dataObj.name)) {
@@ -408,11 +403,9 @@ Owner: ${config.ownerId}
     }
   }
 
-  // 2. Blok try...catch yang benar untuk mendaftarkan slash command
   try {
     console.log(`Mencoba mendaftarkan ${commands.length} slash command...`);
     if (config.guildID) {
-      // Untuk guild/server spesifik (mode development)
       await rest.put(
         Routes.applicationGuildCommands(client.user.id, config.guildID),
         { body: commands },
@@ -421,16 +414,13 @@ Owner: ${config.ownerId}
         `✅ Slash commands berhasil terdaftar untuk guild ${config.guildID}.`,
       );
     } else {
-      // Untuk global (mode production)
       await rest.put(Routes.applicationCommands(client.user.id), {
         body: commands,
       });
       console.log("✅ Slash commands berhasil terdaftar secara global.");
     }
   } catch (err) {
-    // 3. Penanganan error yang lebih baik digabungkan di sini
     if (err.code === 50001) {
-      // Error 'Missing Access'
       console.error("❌ GAGAL MENDAFTARKAN SLASH COMMAND: MISSING ACCESS");
       console.error(
         "-------------------------------------------------------------------",
@@ -453,15 +443,12 @@ Owner: ${config.ownerId}
         "-------------------------------------------------------------------",
       );
     } else {
-      // Untuk error lainnya
       console.error("Gagal mendaftarkan slash commands:", err);
     }
   }
 
-  // Bagian untuk cache invites (sudah benar)
   for (const guild of client.guilds.cache.values()) {
     const guildInvites = await guild.invites.fetch().catch(() => new Map());
-    // Pastikan 'invites' sudah di-define di atas (const invites = new Map();)
     invites.set(
       guild.id,
       new Map(guildInvites.map((inv) => [inv.code, inv.uses])),
@@ -470,20 +457,23 @@ Owner: ${config.ownerId}
   }
 });
 
+// ==================== [DIPERBARUI] EVENT MEMBER JOIN ====================
 client.on("guildMemberAdd", async (member) => {
-  for (const plugin of client.slashCommands.values()) {
-    if (typeof plugin.handleGuildMemberAdd === "function") {
+  // Mengeksekusi secara rapi semua handler JOIN yang terkumpul saat load plugins
+  if (client.joinHandlers && client.joinHandlers.length > 0) {
+    for (const handler of client.joinHandlers) {
       try {
-        await plugin.handleGuildMemberAdd(member, client);
+        await handler(member, client);
       } catch (err) {
         console.error(
-          `Error di handleGuildMemberAdd untuk ${member.user.tag}:`,
+          `[JOIN HANDLER ERROR] Gagal mengeksekusi sambutan untuk ${member.user?.tag || 'Unknown'}:`,
           err,
         );
       }
     }
   }
 });
+// ========================================================================
 
 global.sendApiError = async function (message, error, context = "API") {
   let errMsg = typeof error === "string" ? error : error?.message || error;
